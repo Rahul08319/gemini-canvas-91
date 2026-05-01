@@ -1,26 +1,57 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
-import { Loader2, Sparkles, Download } from "lucide-react";
+import { Loader2, Sparkles, Download, LogOut } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import type { Session } from "@supabase/supabase-js";
+
+const MAX_PROMPT_LENGTH = 2000;
 
 const Index = () => {
+  const navigate = useNavigate();
+  const [session, setSession] = useState<Session | null>(null);
+  const [authChecked, setAuthChecked] = useState(false);
   const [prompt, setPrompt] = useState("");
   const [imageUrl, setImageUrl] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, s) => {
+      setSession(s);
+      setAuthChecked(true);
+      if (!s) navigate("/auth", { replace: true });
+    });
+    supabase.auth.getSession().then(({ data: { session: s } }) => {
+      setSession(s);
+      setAuthChecked(true);
+      if (!s) navigate("/auth", { replace: true });
+    });
+    return () => subscription.unsubscribe();
+  }, [navigate]);
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    toast.success("Signed out");
+  };
+
   const generateImage = async () => {
-    if (!prompt.trim()) {
+    const trimmed = prompt.trim();
+    if (!trimmed) {
       toast.error("Please enter a prompt");
+      return;
+    }
+    if (trimmed.length > MAX_PROMPT_LENGTH) {
+      toast.error(`Prompt must be ${MAX_PROMPT_LENGTH} characters or fewer`);
       return;
     }
 
     setIsLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke('generate-image', {
-        body: { prompt }
+        body: { prompt: trimmed }
       });
 
       if (error) {
@@ -32,6 +63,11 @@ const Index = () => {
           toast.error("Failed to generate image");
         }
         console.error('Error:', error);
+        return;
+      }
+
+      if (data?.error) {
+        toast.error(data.error);
         return;
       }
 
@@ -49,7 +85,6 @@ const Index = () => {
 
   const downloadImage = () => {
     if (!imageUrl) return;
-    
     const link = document.createElement('a');
     link.href = imageUrl;
     link.download = `generated-image-${Date.now()}.png`;
@@ -59,11 +94,24 @@ const Index = () => {
     toast.success("Image downloaded!");
   };
 
+  if (!authChecked || !session) {
+    return (
+      <main className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </main>
+    );
+  }
+
   return (
     <main className="min-h-screen bg-gradient-to-b from-background to-background/95 py-12 px-4">
       <div className="container max-w-6xl mx-auto">
-        {/* Header */}
-        <header className="text-center mb-12 animate-fade-in">
+        <header className="text-center mb-12 animate-fade-in relative">
+          <div className="absolute right-0 top-0">
+            <Button variant="outline" size="sm" onClick={handleSignOut}>
+              <LogOut className="mr-2 h-4 w-4" />
+              Sign out
+            </Button>
+          </div>
           <div className="inline-flex items-center gap-2 mb-4 text-primary">
             <Sparkles className="w-8 h-8" />
           </div>
@@ -75,9 +123,7 @@ const Index = () => {
           </p>
         </header>
 
-        {/* Main Content */}
         <div className="grid lg:grid-cols-2 gap-8">
-          {/* Input Section */}
           <Card className="p-6 border-border/50 bg-card/50 backdrop-blur-sm shadow-lg">
             <div className="space-y-4">
               <div>
@@ -88,10 +134,14 @@ const Index = () => {
                   id="prompt"
                   placeholder="Describe the image you want to create... (e.g., 'A serene mountain landscape at sunset with vibrant colors')"
                   value={prompt}
-                  onChange={(e) => setPrompt(e.target.value)}
+                  onChange={(e) => setPrompt(e.target.value.slice(0, MAX_PROMPT_LENGTH))}
+                  maxLength={MAX_PROMPT_LENGTH}
                   className="min-h-[200px] resize-none bg-background/50 border-border/50 focus:border-primary transition-colors"
                   disabled={isLoading}
                 />
+                <p className="text-xs text-muted-foreground text-right mt-1">
+                  {prompt.length}/{MAX_PROMPT_LENGTH}
+                </p>
               </div>
 
               <Button
@@ -118,7 +168,6 @@ const Index = () => {
             </div>
           </Card>
 
-          {/* Image Display Section */}
           <Card className="p-6 border-border/50 bg-card/50 backdrop-blur-sm shadow-lg">
             <div className="space-y-4">
               <div className="flex items-center justify-between">
@@ -161,7 +210,6 @@ const Index = () => {
           </Card>
         </div>
 
-        {/* Tips Section */}
         <Card className="mt-8 p-6 border-border/50 bg-card/50 backdrop-blur-sm">
           <h3 className="text-lg font-semibold mb-3">💡 Tips for better results:</h3>
           <ul className="space-y-2 text-sm text-muted-foreground">
