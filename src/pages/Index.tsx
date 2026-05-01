@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
-import { Loader2, Sparkles, Download, LogOut } from "lucide-react";
+import { Loader2, Sparkles, Download, LogOut, History as HistoryIcon } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { Session } from "@supabase/supabase-js";
@@ -106,7 +106,13 @@ const Index = () => {
     <main className="min-h-screen bg-gradient-to-b from-background to-background/95 py-12 px-4">
       <div className="container max-w-6xl mx-auto">
         <header className="text-center mb-12 animate-fade-in relative">
-          <div className="absolute right-0 top-0">
+          <div className="absolute right-0 top-0 flex gap-2">
+            <Button variant="outline" size="sm" asChild>
+              <Link to="/history">
+                <HistoryIcon className="mr-2 h-4 w-4" />
+                History
+              </Link>
+            </Button>
             <Button variant="outline" size="sm" onClick={handleSignOut}>
               <LogOut className="mr-2 h-4 w-4" />
               Sign out
